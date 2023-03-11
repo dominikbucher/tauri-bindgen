@@ -56,6 +56,9 @@ impl WorldGenerator for Host {
             "#[allow(clippy::all, unused)]
             #[rustfmt::skip]
             pub mod {snake} {{
+                use serde::Serialize;
+                use serde::Deserialize;
+                use tauri::InvokeError;
                 use ::tauri_bindgen_host::tauri_bindgen_abi;
                 pub const WORLD_HASH: &str = \"{world_hash}\";
                 {module}
@@ -202,7 +205,8 @@ impl<'a> InterfaceGenerator<'a> {
                 message: &__tauri_message__,
             }}).unwrap();
             let message = ::tauri_bindgen_host::decode_base64(&message);
-            let params: Params = ::tauri_bindgen_host::tauri_bindgen_abi::from_slice(&message).unwrap();
+            let message = String::from_utf8(message.clone()).unwrap();  
+            let params : Params = serde_json::from_str(&message).unwrap();
         "#,
             func.name
         );
@@ -221,8 +225,8 @@ impl<'a> InterfaceGenerator<'a> {
         // serialize and encode result
         uwriteln!(self.src, "
             __tauri_resolver__.respond(result
-                .map(|ref val| ::tauri_bindgen_host::encode_base64(&::tauri_bindgen_host::tauri_bindgen_abi::to_bytes(val).unwrap()))
-                .map_err(|ref err| ::tauri_bindgen_host::encode_base64(&::tauri_bindgen_host::tauri_bindgen_abi::to_bytes(&err.to_string()).unwrap()).into())
+                .map(|ref val| ::tauri_bindgen_host::encode_base64(serde_json::to_string(val).unwrap().as_bytes()))
+                .map_err(|ref err| InvokeError::from(serde_json::to_string(&err.to_string()).unwrap()))
             );");
 
         uwriteln!(self.src, "}},");
@@ -231,7 +235,7 @@ impl<'a> InterfaceGenerator<'a> {
     fn print_param_struct(&mut self, func: &Function) {
         // let lifetime = func.params.iter().any(|(_, ty)| self.needs_lifetime(ty));
 
-        self.push_str("#[derive(tauri_bindgen_abi::Readable)]\n");
+        self.push_str("#[derive(tauri_bindgen_abi::Readable, Serialize, Deserialize)]\n");
         // self.push_str("#[serde(rename_all = \"camelCase\")]\n");
         self.src.push_str("struct Params");
         // self.print_generics(lifetime.then(|| "'a"));
@@ -453,5 +457,8 @@ fn get_serde_attrs(name: &str, uses_two_names: bool, info: TypeInfo) -> Option<S
         }
     }
 
-    Some(format!("#[derive({})]\n", attrs.join(", ")))
+    Some(format!(
+        "#[derive({}, Serialize, Deserialize)]\n",
+        attrs.join(", ")
+    ))
 }

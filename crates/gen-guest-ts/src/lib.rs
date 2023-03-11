@@ -128,12 +128,15 @@ impl<'a> InterfaceGenerator<'a> {
     fn print_intro(&mut self) {
         self.push_str(
             "
-        declare global {
-            interface Window {
-                __TAURI_INVOKE__<T>(cmd: string, args?: Record<string, unknown>): Promise<T>;
-            }
-        }
-        const invoke = window.__TAURI_INVOKE__;",
+        // declare global {
+        //     interface Window {
+        //         __TAURI_INVOKE__<T>(cmd: string, args?: Record<string, unknown>): Promise<T>;
+        //     }
+        // }
+        // const invoke = window.__TAURI_INVOKE__;
+        import { invoke } from \"@tauri-apps/api/tauri\";
+        import { encode, decode } from \"js-base64\";
+        ",
         );
     }
 
@@ -164,6 +167,7 @@ impl<'a> InterfaceGenerator<'a> {
             self.print_ty(ty);
         }
         self.push_str("): Promise<");
+
         if let Some((ok_ty, _)) = func.results.throws() {
             self.print_optional_ty(ok_ty);
         } else {
@@ -188,33 +192,33 @@ impl<'a> InterfaceGenerator<'a> {
             self.push_str("const result = ");
         }
 
-        self.push_str("await invoke<");
+        self.push_str("await invoke<string>(");
 
-        if let Some((ok_ty, _)) = func.results.throws() {
-            self.print_optional_ty(ok_ty);
-        } else {
-            match func.results.len() {
-                0 => self.push_str("void"),
-                1 => self.print_ty(func.results.types().next().unwrap()),
-                _ => {
-                    self.push_str("[");
-                    for (i, ty) in func.results.types().enumerate() {
-                        if i != 0 {
-                            self.push_str(", ");
-                        }
-                        self.print_ty(ty);
-                    }
-                    self.push_str("]");
-                }
-            }
-        }
+        // if let Some((ok_ty, _)) = func.results.throws() {
+        //     self.print_optional_ty(ok_ty);
+        // } else {
+        //     match func.results.len() {
+        //         0 => self.push_str("void"),
+        //         1 => self.print_ty(func.results.types().next().unwrap()),
+        //         _ => {
+        //             self.push_str("[");
+        //             for (i, ty) in func.results.types().enumerate() {
+        //                 if i != 0 {
+        //                     self.push_str(", ");
+        //                 }
+        //                 self.print_ty(ty);
+        //             }
+        //             self.push_str("]");
+        //         }
+        //     }
+        // }
 
-        self.push_str(">(");
+        // self.push_str(">(");
 
         self.push_str(&format!("\"plugin:{}|{}\",", self.world_hash, func.name));
 
+        self.push_str("{encoded: encode(JSON.stringify({");
         if !func.params.is_empty() {
-            self.push_str("{");
             for (i, (name, _ty)) in func.params.iter().enumerate() {
                 if i > 0 {
                     self.push_str(", ");
@@ -223,13 +227,13 @@ impl<'a> InterfaceGenerator<'a> {
                 self.push_str(": ");
                 self.push_str(to_js_ident(&name.to_lower_camel_case()));
             }
-            self.push_str("}");
         }
+        self.push_str("}), true)}");
 
         self.push_str(");\n");
 
         if !func.results.is_empty() {
-            self.push_str("return result\n");
+            self.push_str("return JSON.parse(decode(result))\n");
         }
 
         self.push_str("}\n");
