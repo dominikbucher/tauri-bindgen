@@ -60,6 +60,7 @@ impl WorldGenerator for Host {
                 use serde::Deserialize;
                 use tauri::InvokeError;
                 use ::tauri_bindgen_host::tauri_bindgen_abi;
+                use crate::web_bridge::DatabaseState;
                 pub const WORLD_HASH: &str = \"{world_hash}\";
                 {module}
             }}"
@@ -220,7 +221,21 @@ impl<'a> InterfaceGenerator<'a> {
             self.src.push_str(", ");
         }
 
-        uwriteln!(self.src, ");");
+        uwriteln!(
+            self.src,
+            r#"
+            match ::tauri::command::CommandArg::from_command(
+                ::tauri::command::CommandItem {{
+                    name: "{}",
+                    key: "state",
+                    message: &__tauri_message__,
+                }},
+            ) {{
+                Ok(arg) => arg,
+                Err(err) => return __tauri_resolver__.invoke_error(err),
+            }},);"#,
+            func.name.to_snake_case()
+        );
 
         // serialize and encode result
         uwriteln!(self.src, "

@@ -493,7 +493,7 @@ pub trait RustGenerator<'a> {
             self.print_ty(param, param_mode);
             self.push_str(",");
         }
-        self.push_str(")");
+        self.push_str("state: tauri::State<DatabaseState>,)");
         params
     }
 

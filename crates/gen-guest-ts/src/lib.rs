@@ -134,6 +134,31 @@ impl<'a> InterfaceGenerator<'a> {
         //     }
         // }
         // const invoke = window.__TAURI_INVOKE__;
+
+        import * as _ from \"lodash\";
+
+        function camelCaseDeep(anything) {
+            const thing = _.cloneDeep(anything);
+          
+            if (
+              _.isEmpty(thing) ||
+              (!_.isObject(thing) && !_.isArray(thing))
+            ) {
+              return thing;
+            }
+          
+            if (_.isArray(thing)) {
+              const arr = thing;
+              return arr.map(el => camelCaseDeep(el))
+            }
+          
+            // thing can be only not empty object here
+            const objWithMappedKeys = _.mapKeys(thing, (value, key) => _.camelCase(key));
+            const objWithMappedValues = _.mapValues(objWithMappedKeys, value => camelCaseDeep(value));
+          
+            return objWithMappedValues;
+        }
+
         import { invoke } from \"@tauri-apps/api/tauri\";
         import { encode, decode } from \"js-base64\";
         ",
@@ -233,7 +258,7 @@ impl<'a> InterfaceGenerator<'a> {
         self.push_str(");\n");
 
         if !func.results.is_empty() {
-            self.push_str("return JSON.parse(decode(result))\n");
+            self.push_str("return camelCaseDeep(JSON.parse(decode(result)))\n");
         }
 
         self.push_str("}\n");
