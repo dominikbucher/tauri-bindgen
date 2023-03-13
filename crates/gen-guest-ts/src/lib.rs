@@ -159,6 +159,27 @@ impl<'a> InterfaceGenerator<'a> {
             return objWithMappedValues;
         }
 
+        function snakeCaseDeep(anything) {
+            const thing = _.cloneDeep(anything);
+
+            if (_.isEmpty(thing) || (!_.isObject(thing) && !_.isArray(thing))) {
+                return thing;
+            }
+
+            if (_.isArray(thing)) {
+                const arr = thing;
+                return arr.map((el) => snakeCaseDeep(el));
+            }
+
+            // thing can be only not empty object here
+            const objWithMappedKeys = _.mapKeys(thing, (value, key) => _.snakeCase(key));
+            const objWithMappedValues = _.mapValues(objWithMappedKeys, (value) =>
+                snakeCaseDeep(value)
+            );
+
+            return objWithMappedValues;
+        }
+
         import { invoke } from \"@tauri-apps/api/tauri\";
         import { encode, decode } from \"js-base64\";
         ",
@@ -242,7 +263,7 @@ impl<'a> InterfaceGenerator<'a> {
 
         self.push_str(&format!("\"plugin:{}|{}\",", self.world_hash, func.name));
 
-        self.push_str("{encoded: encode(JSON.stringify({");
+        self.push_str("{encoded: encode(JSON.stringify(snakeCaseDeep({");
         if !func.params.is_empty() {
             for (i, (name, _ty)) in func.params.iter().enumerate() {
                 if i > 0 {
@@ -253,7 +274,7 @@ impl<'a> InterfaceGenerator<'a> {
                 self.push_str(to_js_ident(&name.to_lower_camel_case()));
             }
         }
-        self.push_str("}), true)}");
+        self.push_str("})), true)}");
 
         self.push_str(");\n");
 
